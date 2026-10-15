@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'">
+<title>高德用量监控</title>
+<style>
+  :root {
+    --bg: #16161e; --panel: #1e1e28; --panel2: #262634;
+    --border: #33334a; --text: #e8e8ef; --muted: #8b8ba3;
+    --accent: #5b7cfa; --green: #4ade80; --red: #f87171; --amber: #fbbf24;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.6; overflow-x: hidden; }
+  .topbar { display: flex; align-items: center; gap: 12px; padding: 14px 22px; border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; background: var(--bg); z-index: 10; }
+  .topbar h1 { font-size: 16px; font-weight: 600; flex: 1; }
+  .badge { font-size: 12px; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+  .badge.ok { color: var(--green); border-color: rgba(74,222,128,.4); }
+  .badge.warn { color: var(--red); border-color: rgba(248,113,113,.4); }
+  .badge.busy { color: var(--amber); border-color: rgba(251,191,36,.4); }
+  .tab { display: flex; gap: 4px; }
+  .tab button { background: transparent; border: none; color: var(--muted); padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; }
+  .tab button.on { background: var(--panel2); color: var(--text); }
+  button.btn { background: var(--accent); color: #fff; border: none; padding: 9px 18px; border-radius: 8px; cursor: pointer; font-size: 13px; }
+  button.btn.ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  button.btn:disabled { opacity: .5; cursor: default; }
+  main { padding: 20px 22px 40px; max-width: 980px; margin: 0 auto; }
+  .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+  .card .k { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .card .v { font-size: 20px; font-weight: 600; }
+  .card .v.warn { color: var(--red); }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; margin-bottom: 18px; }
+  .panel h2 { font-size: 14px; font-weight: 600; margin-bottom: 14px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border); font-size: 13px; }
+  th { color: var(--muted); font-weight: 500; background: var(--panel2); }
+  th:first-child, td:first-child { border-radius: 0; }
+  .bar { height: 6px; background: var(--panel2); border-radius: 999px; overflow: hidden; min-width: 80px; }
+  .bar i { display: block; height: 100%; border-radius: 999px; background: var(--accent); }
+  .bar i.warn { background: var(--red); }
+  .bar i.mid { background: var(--amber); }
+  .pct { font-variant-numeric: tabular-nums; }
+  .pct.warn { color: var(--red); font-weight: 600; }
+  .row-tag { font-size: 11px; color: var(--muted); }
+  .empty { color: var(--muted); text-align: center; padding: 30px 0; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  /* 设置表单 */
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  .field input, .field select { width: 100%; background: var(--panel2); border: 1px solid var(--border); color: var(--text);
+    border-radius: 8px; padding: 9px 12px; font-size: 14px; }
+  .field input:focus, .field select:focus { outline: none; border-color: var(--accent); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .channel { border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 14px; background: var(--panel2); }
+  .channel-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .channel-head .t { font-weight: 600; font-size: 14px; flex: 1; }
+  .switch { position: relative; width: 40px; height: 22px; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .switch .slider { position: absolute; cursor: pointer; inset: 0; background: var(--border); border-radius: 999px; transition: .2s; }
+  .switch .slider:before { content: ""; position: absolute; height: 16px; width: 16px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .2s; }
+  .switch input:checked + .slider { background: var(--accent); }
+  .switch input:checked + .slider:before { transform: translateX(18px); }
+  .test-result { font-size: 12px; margin-top: 6px; min-height: 16px; }
+  .test-result.ok { color: var(--green); }
+  .test-result.no { color: var(--red); }
+  @media (max-width: 760px) { .cards { grid-template-columns: 1fr 1fr; } .grid2 { grid-template-columns: 1fr; } }
+  :root { --bg:#101713; --panel:#18221c; --panel2:#202d24; --border:#2b3a30; --text:#edf5ef; --muted:#9aada0; --accent:#28a568; --green:#5de09a; --red:#ff7777; --amber:#f2c45e; }
+  body { background: radial-gradient(ellipse at 50% -20%, #20372a 0, var(--bg) 55%); }
+  .topbar { background:rgba(16,23,19,.92); backdrop-filter:blur(14px); padding:14px max(22px, calc((100vw - 1120px)/2)); }
+  main { max-width:1120px; padding-top:26px; }
+  .topbar h1 { font-size:17px; letter-spacing:.2px; }
+  .card,.panel { background:linear-gradient(145deg,rgba(29,42,33,.98),rgba(23,32,26,.98)); border-color:#2b3a30; box-shadow:0 8px 24px rgba(0,0,0,.12); }
+  .card { padding:17px 18px; transition:transform .18s,border-color .18s; }
+  .card:hover { transform:translateY(-2px); border-color:#45634d; }
+  .card .k { letter-spacing:.3px; }
+  .card .v { font-variant-numeric:tabular-nums; }
+  .panel { padding:19px 20px; }
+  .panel h2 { font-size:15px; }
+  th { background:#202d24; }
+  tbody tr { transition:background .15s; }
+  tbody tr:hover { background:rgba(93,224,154,.055); }
+  th,td { padding:11px 12px; }
+  button.btn { background:linear-gradient(135deg,#31b875,#218c58); box-shadow:0 4px 12px rgba(40,165,104,.2); font-weight:600; transition:filter .15s,transform .15s; }
+  button.btn:hover { filter:brightness(1.09); transform:translateY(-1px); }
+  button.btn.ghost { box-shadow:none; }
+  .tab button.on { color:#8ee5b3; background:#22362a; }
+  .field input:focus,.field select:focus { box-shadow:0 0 0 3px rgba(40,165,104,.16); }
+  .channel { background:rgba(32,45,36,.62); }
+  #trendBox svg { max-width:100%; overflow:visible; }
+  .error-banner { display:none; margin:-4px 0 18px; padding:11px 14px; border:1px solid rgba(255,119,119,.35); border-radius:10px; color:#ffaaaa; background:rgba(105,35,35,.22); }
+  @media (max-width:760px) { .topbar { padding:12px 14px; flex-wrap:wrap; } .topbar h1 { min-width:45%; } .topbar .tab { order:3; } main { padding:16px 14px 28px; } .cards { gap:9px; } .card { padding:13px; } .panel { padding:15px 12px; overflow-x:auto; } table { min-width:650px; } }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <h1>高德用量监控</h1>
+    <span class="badge" id="statusBadge">启动中…</span>
+    <div class="tab">
+      <button class="on" data-tab="dash">仪表盘</button>
+      <button data-tab="settings">设置</button>
+    </div>
+    <button class="btn" id="btnCheck">立即检测</button>
+  </div>
+
+  <main>
+    <!-- 仪表盘 -->
+    <section id="tab-dash">
+      <div class="cards">
+        <div class="card"><div class="k">上次检测</div><div class="v" id="cLast" style="font-size:15px">—</div></div>
+        <div class="card"><div class="k">监测服务数</div><div class="v" id="cCount">—</div></div>
+        <div class="card"><div class="k">超标服务</div><div class="v" id="cAlert">—</div></div>
+        <div class="card"><div class="k">基础LBS组合计</div><div class="v" id="cTop" style="font-size:14px">—</div></div>
+      </div>
+      <div class="error-banner" id="errorBanner" role="status"></div>
+
+      <div class="panel">
+        <h2>服务用量明细</h2>
+        <table>
+          <thead><tr><th>服务</th><th>服务组</th><th>月配额</th><th>已用</th><th>占比</th><th>用量条</th></tr></thead>
+          <tbody id="tblBody"></tbody>
+        </table>
+        <div class="empty" id="tblEmpty" style="display:none">暂无数据。点右上角「立即检测」，或先到「设置」登录高德账号。</div>
+      </div>
+
+      <div class="panel">
+        <h2>基础LBS服务组 · 当月调用量趋势</h2>
+        <div id="trendBox"><div class="empty">积累几次检测后这里会画出趋势。</div></div>
+      </div>
+    </section>
+
+    <!-- 设置 -->
+    <section id="tab-settings" style="display:none">
+      <div class="panel">
+        <h2>检测规则</h2>
+        <div class="grid2">
+          <div class="field"><label>报警阈值（当月用量占月配额 %，达到即提醒）</label><input type="number" id="cfgThreshold" min="1" max="100"></div>
+          <div class="field"><label>自动检测间隔</label>
+            <select id="cfgInterval">
+              <option value="5">每 5 分钟</option>
+              <option value="15">每 15 分钟</option>
+              <option value="30">每 30 分钟</option>
+              <option value="60">每 1 小时</option>
+              <option value="120">每 2 小时</option>
+              <option value="360">每 6 小时</option>
+              <option value="720">每 12 小时</option>
+              <option value="1440">每 24 小时</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>高德账号</h2>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <span class="badge" id="loginBadge">未登录</span>
+          <button class="btn ghost" id="btnLogin">重新登录</button>
+          <button class="btn ghost" id="btnLogout">退出登录 / 切换账号</button>
+        </div>
+        <div class="hint">「重新登录」刷新当前账号登录态；「退出登录/切换账号」会清空登录态，重新扫码登录新账号。</div>
+      </div>
+
+      <div class="panel">
+        <h2>提醒渠道</h2>
+        <div class="hint" style="margin-bottom:14px">以下渠道可同时启用，哪个能发就发哪个。额度达阈值时自动触发。</div>
+
+        <div class="channel">
+          <div class="channel-head"><span class="t">邮箱提醒</span><label class="switch"><input type="checkbox" id="emailOn"><span class="slider"></span></label></div>
+          <div class="grid2">
+            <div class="field"><label>SMTP 服务器</label><input id="emailHost" placeholder="smtp.qq.com"></div>
+            <div class="field"><label>端口</label><input id="emailPort" type="number" placeholder="465"></div>
+            <div class="field"><label>发件邮箱</label><input id="emailUser" placeholder="you@qq.com"></div>
+            <div class="field"><label>授权码（非登录密码）</label><input id="emailPass" type="password" placeholder="SMTP 授权码"></div>
+            <div class="field" style="grid-column:span 2"><label>收件邮箱</label><input id="emailTo" placeholder="接收提醒的邮箱"></div>
+          </div>
+          <button class="btn ghost" id="testEmail">发送测试邮件</button><span class="test-result" id="testEmailR"></span>
+        </div>
+
+        <div class="channel">
+          <div class="channel-head"><span class="t">微信 · 企业微信群机器人</span><label class="switch"><input type="checkbox" id="wecomOn"><span class="slider"></span></label></div>
+          <div class="field"><label>Webhook 地址</label><input id="wecomHook" placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=..."></div>
+          <button class="btn ghost" id="testWecom">发送测试消息</button><span class="test-result" id="testWecomR"></span>
+        </div>
+
+        <div class="channel">
+          <div class="channel-head"><span class="t">微信 · Server酱</span><label class="switch"><input type="checkbox" id="scOn"><span class="slider"></span></label></div>
+          <div class="field"><label>SendKey</label><input id="scKey" placeholder="SCT..."></div>
+          <button class="btn ghost" id="testSc">发送测试消息</button><span class="test-result" id="testScR"></span>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:12px;align-items:center">
+        <button class="btn" id="btnSave">保存设置</button>
+        <span class="hint" id="saveHint"></span>
+      </div>
+    </section>
+  </main>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

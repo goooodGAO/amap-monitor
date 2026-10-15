@@ -1,0 +1,63 @@
+{
+  "name": "amap-usage-monitor",
+  "version": "1.0.0",
+  "description": "高德开放平台个人开发者用量监控桌面软件",
+  "main": "main.js",
+  "author": "Nexys",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --win --x64 --dir",
+    "dist": "electron-builder --win --x64"
+  },
+  "dependencies": {
+    "nodemailer": "^6.9.16"
+  },
+  "devDependencies": {
+    "electron": "33.4.11",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.nexys.amap-usage-monitor",
+    "productName": "高德用量监控",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "scraper.js",
+      "notifier.js",
+      "storage.js",
+      "renderer/**/*",
+      "icon.png",
+      "icon.ico"
+    ],
+    "win": {
+      "icon": "icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "高德用量监控"
+    },
+    "compression": "maximum",
+    "afterPack": "scripts/after-pack.js"
+  }
+}
